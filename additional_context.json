@@ -1,0 +1,10 @@
+[
+	{
+		"pattern": "Division by zero",
+		"info": "This error indicates that division by zero is performed."
+	},
+	{
+		"pattern": "NameError",
+		"info": "This error indicates that a variable is not defined. See details at https://example.com/nameerror.png"
+	}
+]
