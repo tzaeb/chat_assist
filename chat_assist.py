@@ -9,7 +9,7 @@ st.title("Chat Assist")
 ai_model = "deepseek-r1:1.5b"
 max_history_in_prompt = 6
 additional_context_prompt = "You are an AI assistant, answering user questions accurately. Use the following additional \
-                    context when relevant to the question or when it aligns with the provided topics:"
+                    context only when relevant to the question or when it aligns with the provided topics:"
 additional_context_file = "additional_context.json"
 client = Client(host="http://localhost:11434")
 
@@ -48,7 +48,7 @@ if prompt := st.chat_input("Enter your message"):
         st.markdown(prompt)
     
     additional_context = load_additional_context()
-    final_prompt = f"{additional_context_prompt} {additional_context}\n{get_prompts_from_history()}"
+    final_prompt = f"system:{additional_context_prompt} {additional_context}\n{get_prompts_from_history()}"
     # Use a single assistant chat message block to stream the response.
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
