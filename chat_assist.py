@@ -34,11 +34,11 @@ def load_additional_context():
 def extract_image_urls(text):
     return re.findall(r"(https?://\S+\.(?:png|jpg|jpeg|gif))", text)
 
-def get_prompts_from_history():
+def get_prompts_from_history(max=max_history_in_prompt):
     lines = []
     messages = st.session_state.messages
     #print(messages)
-    for message in messages[-max_history_in_prompt:]:
+    for message in messages[-max:]:
         lines.append(f"{message['role']}: {message['content']}")
     return "\n".join(lines)
 
