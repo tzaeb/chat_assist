@@ -5,8 +5,20 @@ from ollama import Client
 
 st.title("Chat Assist")
 
-# Configure the AI model client.
-ai_model = "deepseek-r1:1.5b"
+# Model selection
+model_options = {
+    "DeepSeek-R1 1.5B": "deepseek-r1:1.5b",
+    "DeepSeek-R1 8B": "deepseek-r1:8b",
+    "DeepSeek-R1 14B": "deepseek-r1:14b",
+    "llama 3.1 8B": "llama3.1:8b"
+
+}
+selected_model = st.selectbox(
+    "Select the AI model:",
+    options=list(model_options.keys()),
+    index=1
+)
+
 max_history_in_prompt = 6
 additional_context_prompt = "You are an AI assistant, answering user questions accurately. Use the following additional \
                     context only when relevant to the question or when it aligns with the provided topics:"
@@ -55,7 +67,7 @@ if prompt := st.chat_input("Enter your message"):
         main_text = ""
         thinking_text = ""
         in_think = False  # True while inside a <think> block.
-        stream = client.generate(model=ai_model, prompt=final_prompt, stream=True)
+        stream = client.generate(model=model_options[selected_model], prompt=final_prompt, stream=True)
         for chunk in stream:
             text = chunk["response"]
             if not in_think:
