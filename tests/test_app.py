@@ -1,6 +1,6 @@
 import pytest
 import json
-from chat_assist import extract_image_urls, load_additional_context, get_prompts_from_history
+from chat_assist import extract_image_urls, load_context, get_history
 import streamlit as st
 
 # Mocking session state for get_prompts_from_history
@@ -16,8 +16,8 @@ def test_extract_image_urls():
     expected_urls = ["https://example.com/image.jpg", "https://example.com/image2.png"]
     assert extract_image_urls(text) == expected_urls, "Should contain URLs."
 
-def test_load_additional_context():
-    data = json.loads(load_additional_context())
+def test_load_context():
+    data = json.loads(load_context())
     
     # Ensure the data is a list
     assert isinstance(data, list), "JSON data should be a list of dictionaries."
@@ -34,13 +34,13 @@ def test_load_additional_context():
         assert isinstance(entry["pattern"], str), "'pattern' should be a string."
         assert isinstance(entry["info"], str), "'info' should be a string."
 
-def test_get_prompts_from_history(mock_session_state):
-    history = get_prompts_from_history()
+def test_get_history(mock_session_state):
+    history = get_history()
     assert "user: Hello, how are you?" in history, "String should be in history."
     assert "assistant: I am fine, thank you!" in history, "String should be in history."
 
-def test_get_prompts_from_history_max(mock_session_state):
-    history = get_prompts_from_history(1)
+def test_get_history_max(mock_session_state):
+    history = get_history(1)
     print(history)
     assert not "user: Hello, how are you?" in history, "String should not be in history."
     assert "assistant: I am fine, thank you!" in history, "String should be in history."
