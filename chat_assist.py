@@ -20,25 +20,25 @@ selected_model = st.selectbox(
 )
 
 max_history_in_prompt = 6
-additional_context_prompt = "You are an AI assistant, answering user questions accurately. Use the following additional \
+context_prompt = "You are an AI assistant, answering user questions accurately. Use the following additional \
                     context only when relevant to the question or when it aligns with the provided topics:"
-additional_context_file = "additional_context.json"
+context_file = "context.json"
 client = Client(host="http://localhost:11434")
 
 @st.cache_data
-def load_additional_context():
-    with open(additional_context_file, "r") as f:
+def load_context():
+    with open(context_file, "r") as f:
         data = json.load(f)
     return json.dumps(data,indent=2)
 
 def extract_image_urls(text):
     return re.findall(r"(https?://\S+\.(?:png|jpg|jpeg|gif))", text)
 
-def get_prompts_from_history():
+def get_history(max=max_history_in_prompt):
     lines = []
     messages = st.session_state.messages
     #print(messages)
-    for message in messages[-max_history_in_prompt:]:
+    for message in messages[-max:]:
         lines.append(f"{message['role']}: {message['content']}")
     return "\n".join(lines)
 
@@ -59,8 +59,8 @@ if prompt := st.chat_input("Enter your message"):
     with st.chat_message("user"):
         st.markdown(prompt)
     
-    additional_context = load_additional_context()
-    final_prompt = f"system:{additional_context_prompt} {additional_context}\n{get_prompts_from_history()}"
+    context = load_context()
+    final_prompt = f"system:{context_prompt} {context}\n{get_history()}"
     # Use a single assistant chat message block to stream the response.
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
