@@ -1,10 +1,42 @@
 [
-	{
-		"pattern": "Division by zero",
-		"info": "This error indicates that division by zero is performed."
-	},
-	{
-		"pattern": "NameError",
-		"info": "This error indicates that a variable is not defined. See details at https://example.com/nameerror.png"
-	}
+    {
+        "summary": "Autonomous car fails to detect pedestrians in low light conditions",
+        "description": "Improve the night vision model with IR-enhanced training data and increase sensor fusion accuracy.",
+        "tags": ["autonomous", "pedestrian", "low light", "night vision", "sensor fusion"]
+    },
+    {
+        "summary": "Battery overheating in high-speed charging",
+        "description": "Implement active cooling during charge cycles and optimize thermal regulation algorithms.",
+        "tags": ["battery", "overheating", "charging", "thermal management"]
+    },
+    {
+        "summary": "Self-driving vehicle struggles with lane detection in heavy rain",
+        "description": "Enhance sensor fusion by combining LiDAR, radar, and thermal cameras to compensate for poor vision conditions.",
+        "tags": ["autonomous", "lane detection", "heavy rain", "LiDAR", "radar", "sensor fusion"]
+    },
+    {
+        "summary": "Reduced sensor performance in heavy rain leading to incorrect obstacle detection",
+        "description": "Enhance sensor fusion techniques by prioritizing radar data over vision-based sensors in adverse weather conditions and implement advanced filtering algorithms to remove rain-induced noise in LiDAR readings.",
+        "tags": ["sensor performance", "heavy rain", "radar", "LiDAR", "obstacle detection", "autonomous"]
+    },
+    {
+        "summary": "Unexpected braking due to false positive obstacle detection",
+        "description": "Refine object classification models to reduce misclassification of shadows and minor road debris as obstacles.",
+        "tags": ["autonomous", "false positive", "braking", "obstacle detection", "object classification"]
+    },
+    {
+        "summary": "Navigation system provides inaccurate route suggestions in urban areas",
+        "description": "Integrate real-time traffic and road condition updates from multiple sources to improve route optimization.",
+        "tags": ["navigation", "urban areas", "route optimization", "traffic data"]
+    },
+    {
+        "summary": "Electric vehicle range significantly decreases in cold weather",
+        "description": "Implement preconditioning systems for battery thermal management and optimize regenerative braking in cold environments.",
+        "tags": ["EV", "cold weather", "range", "battery", "thermal management"]
+    },
+    {
+        "summary": "Delayed response in autonomous emergency braking",
+        "description": "Improve response times by optimizing decision algorithms and reducing sensor processing latency.",
+        "tags": ["autonomous", "braking", "emergency", "response time", "decision algorithms"]
+    }
 ]

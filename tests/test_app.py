@@ -1,7 +1,9 @@
 import pytest
 import json
-from chat_assist import extract_image_urls, load_context, get_history
+from chat_assist import extract_image_urls, get_history
+import utils.vectorization
 import streamlit as st
+import copy
 
 # Mocking session state for get_prompts_from_history
 @pytest.fixture
@@ -17,7 +19,8 @@ def test_extract_image_urls():
     assert extract_image_urls(text) == expected_urls, "Should contain URLs."
 
 def test_load_context():
-    data = json.loads(load_context())
+    vectorization = utils.vectorization.Vectorization()
+    data =copy.deepcopy(vectorization.context_data)
     
     # Ensure the data is a list
     assert isinstance(data, list), "JSON data should be a list of dictionaries."
@@ -27,12 +30,14 @@ def test_load_context():
         assert isinstance(entry, dict), "Each item in the list should be a dictionary."
         
         # Ensure required keys exist
-        assert "pattern" in entry, "Each dictionary should have a 'pattern' key."
-        assert "info" in entry, "Each dictionary should have an 'info' key."
+        assert "summary" in entry, "Each dictionary should have a 'summary' key."
+        assert "description" in entry, "Each dictionary should have an 'description' key."
+        assert "tags" in entry, "Each dictionary should have an 'tags' key."
         
         # Ensure the values are strings
-        assert isinstance(entry["pattern"], str), "'pattern' should be a string."
-        assert isinstance(entry["info"], str), "'info' should be a string."
+        assert isinstance(entry["summary"], str), "'summary' should be a string."
+        assert isinstance(entry["description"], str), "'description' should be a string."
+        assert isinstance(entry["tags"], list), "'tags' should be a list."
 
 def test_get_history(mock_session_state):
     history = get_history()

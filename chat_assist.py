@@ -2,6 +2,11 @@ import streamlit as st
 import json
 import re
 from ollama import Client
+import torch
+import utils.vectorization
+
+# avoid RuntimeError: Tried to instantiate class '__path__._path'...
+torch.classes.__path__ = []
 
 st.title("Chat Assist")
 
@@ -25,11 +30,8 @@ context_prompt = "You are an AI assistant, answering user questions accurately. 
 context_file = "context.json"
 client = Client(host="http://localhost:11434")
 
-@st.cache_data
-def load_context():
-    with open(context_file, "r") as f:
-        data = json.load(f)
-    return json.dumps(data,indent=2)
+# vectorize context
+vectorization = utils.vectorization.Vectorization(context_file)
 
 def extract_image_urls(text):
     return re.findall(r"(https?://\S+\.(?:png|jpg|jpeg|gif))", text)
@@ -59,8 +61,9 @@ if prompt := st.chat_input("Enter your message"):
     with st.chat_message("user"):
         st.markdown(prompt)
     
-    context = load_context()
-    final_prompt = f"system:{context_prompt} {context}\n{get_history()}"
+    results = vectorization.find_matches(prompt)  # Fetch top 3 matches
+    matches = json.dumps(results)
+    final_prompt = f"system:{context_prompt} {str(matches)}\n{get_history()}"
     # Use a single assistant chat message block to stream the response.
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
