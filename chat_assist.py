@@ -102,6 +102,9 @@ if prompt := st.chat_input("Enter your message"):
     if thinking_text.strip():
         with st.expander("Bot's Internal Reasoning"):
             st.markdown(thinking_text)
+    if len(results)>0:
+        with st.expander("Relevant Context Matches"):
+            st.markdown("```json\n" + json.dumps(results, indent=2) + "\n```")
 
     # Append the final assistant message only once to session state.
     st.session_state.messages.append({"role": "assistant", "content": main_text})
