@@ -30,7 +30,7 @@ class Vectorization:
         
         return index
     
-    def find_matches(self, query, top_k=3, similarity_threshold=0.3):
+    def find_matches(self, query, top_k=3, similarity_threshold=0.35):
         """Find the top-k most relevant issues, but return only if similarity is above threshold."""
         query_vector = self.model.encode([query])
 
