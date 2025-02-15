@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import re
 from ollama import Client
+from utils.context_search import ContextSearch  # Import the ContextSearch class
 
 st.title("Chat Assist")
 
@@ -27,15 +28,17 @@ with st.sidebar:
         if uploaded_file.name.endswith(".json"):
             try:
                 parsed_json = json.loads(file_content)
-                st.session_state.file_context = json.dumps(parsed_json, indent=2)
+                file_content = json.dumps(parsed_json, indent=2)
             except json.JSONDecodeError:
                 st.error("Invalid JSON file")
-        else:
-            st.session_state.file_context = file_content
+        
+        st.session_state.file_context = file_content.split("\n")  # Store as list for FAISS indexing
+
+# Initialize ContextSearch with uploaded context (if available)
+context_search = ContextSearch(context_data=st.session_state.get("file_context", []))
 
 max_history_in_prompt = 6
-context_prompt = "You are an AI assistant, answering user questions accurately. Use the following additional \
-context only when relevant to the question or when it aligns with the provided topics"
+context_prompt = "You are an AI assistant, answering user questions accurately."
 
 client = Client(host="http://localhost:11434")
 
@@ -43,51 +46,57 @@ def extract_image_urls(text):
     return re.findall(r"(https?://\S+\.(?:png|jpg|jpeg|gif))", text)
 
 def get_history(max=max_history_in_prompt):
-    lines = []
-    messages = st.session_state.messages
-    for message in messages[-max:]:
-        lines.append(f"{message['role']}: {message['content']}")
-    return "\n".join(lines)
+    return "\n".join(f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages[-max:])
+
+def format_file_context(file_name, file_content):
+    return f"""Additional context:\n
+[file name]: {file_name}
+[file content begin]
+{file_content}
+[file content end]
+"""
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Render the conversation history.
+# Render the conversation history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         for url in extract_image_urls(message["content"]):
             st.image(url, use_container_width=True)
 
-# Get user input using st.chat_input.
+# Get user input
 if prompt := st.chat_input("Enter your message"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
-    
-    file_context = st.session_state.get("file_context", "")
-    if uploaded_file is not None:
-        file_template = """[file name]: {file_name}\n[file content begin]\n{file_content}\n[file content end]\n{question}"""
-        formatted_file_context = file_template.format(file_name=uploaded_file.name, file_content=file_context, question=prompt)
+
+    # Retrieve relevant context
+    relevant_file_context = context_search.find_relevant_context(prompt)
+
+    if uploaded_file and relevant_file_context.strip():
+        final_prompt = f"{context_prompt}\n{format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n\n"
     else:
-        formatted_file_context = file_context
-    
-    final_prompt = f"{context_prompt} {formatted_file_context}\n{get_history()}"
-    
+        final_prompt = f"{context_prompt}\n\n{get_history()}\n\n"
+
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
         main_text = ""
         thinking_text = ""
         in_think = False
-        print("-------------------------------------------------------------------------")
+
+        print("-------------------------------------------------------------------")
         print(final_prompt)
-        print("-------------------------------------------------------------------------")
+        print("-------------------------------------------------------------------")
+
         stream = client.generate(
             model=model_options[selected_model],
             prompt=final_prompt,
             options={"temperature": 0.6},
             stream=True
         )
+
         for chunk in stream:
             text = chunk["response"]
             if not in_think:
@@ -117,5 +126,9 @@ if prompt := st.chat_input("Enter your message"):
     if thinking_text.strip():
         with st.expander("Bot's Internal Reasoning"):
             st.markdown(thinking_text)
+    
+    if uploaded_file and relevant_file_context.strip():
+        with st.expander("Relevant Context Matches"):
+            st.markdown(f"```{format_file_context(uploaded_file.name, relevant_file_context)}```")
 
-    st.session_state.messages.append({"role": "assistant", "content": main_text})
+    st.session_state.messages.append({"role": "assistant", "content": main_text.replace("<think>\n", "")})
