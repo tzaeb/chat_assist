@@ -38,7 +38,7 @@ with st.sidebar:
             except json.JSONDecodeError:
                 st.error("Invalid JSON file")
         
-        st.session_state.file_context = file_content.split("\n")  # Store as list for FAISS indexing
+        st.session_state.file_context = th.chunk_text_by_sections(file_content)  # Store as list for FAISS indexing
 
 # Initialize ContextSearch with uploaded context (if available)
 context_search = ContextSearch(context_data=st.session_state.get("file_context", []))
