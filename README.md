@@ -1,42 +1,51 @@
 # Chat Assist
 
-A Streamlit-based chatbot application that leverages AI models to provide responses. The bot includes features like conversation history, image display, and internal reasoning.
+Chat Assist is an AI-powered chatbot built using `streamlit` and `ollama`, with a contextual search system leveraging `FAISS` and `sentence-transformers` for relevant response retrieval.
 
 ## Features
 
-- **AI-Powered Responses**: Uses the DeepSeek-R1-1.5B model via Ollama for intelligent interactions.
-- **Conversation History**: Maintains a chat history with up to 6 previous messages to provide context.
-- **Image Display**: Extracts and displays image URLs from chat messages using regular expressions.
-- **Internal Reasoning**: Shows detailed reasoning steps when available, stored in an expander section.
+- **Multiple AI Model Support**: Supports models such as DeepSeek-R1 (1.5B, 8B, 14B) and LLaMA 3.1 (8B).
+- **Context-Aware Responses**: Uses vectorized context matching to enhance response accuracy.
+- **Chat History Retention**: Maintains conversation history to provide coherent interactions.
+- **Embedded Context Search**: Uses FAISS to retrieve relevant stored context dynamically.
 
-## Dependencies
+## Installation
 
-To run this application, ensure the following libraries are installed:
+### Prerequisites
 
-streamlit json re ollama
-
-## Setup Instructions
-
-1. **Install Dependencies**:
-   Run `pip install streamlit json re ollama`.
-
-2. **Configure Ollama**:
-   Ensure you have Ollama installed and running locally on port `11434`.
-
-3. **Prepare Additional Context**:
-   Create a JSON file named `additional_context.json` containing any additional context to be used by the AI.
-
-4. **Run the Application**:
-   Execute with `streamlit run main.py`.
+- Python 3.8+
+- Install required dependencies:
+  ```sh
+  pip install -r requirements.txt
+  ```
 
 ## Usage
 
-- Enter your messages in the chat input.
-- The bot will respond using its AI model.
-- Images included in messages will be displayed inline.
-- Detailed reasoning steps (if any) will appear as an expander section.
+1. Start the chatbot:
+   ```sh
+   streamlit run chat_assist.py
+   ```
+2. Select the AI model from the dropdown menu.
+3. Enter your message in the chat input.
+4. The bot retrieves relevant context and generates a response using an embedded context search system.
 
-## Notes
+## How It Works
 
-- **Context**: Additional context is loaded from `additional_context.json` and provided to the AI as part of the prompt.
-- **Images**: URLs for images are extracted using regular expressions and displayed within the chat interface.
+Chat Assist leverages FAISS-based vectorization to dynamically retrieve relevant context from a predefined dataset. The chatbot interface is built with `streamlit`, while the AI model is hosted via `ollama`.
+
+## Example Query
+
+```
+User: "Tell me about autonomous vehicles in heavy rain."
+Bot: "Autonomous vehicles face challenges in heavy rain due to sensor interference and reduced visibility. Relevant studies suggest..."
+```
+
+## Future Improvements
+
+- Enhance model selection.
+- Improve context matching and retrieval.
+- Support for additional AI models.
+
+## License
+
+This project is licensed under the MIT License.

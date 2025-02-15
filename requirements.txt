@@ -1,0 +1,6 @@
+ollama
+streamlit
+pytest
+faiss-cpu
+sentence-transformers
+numpy
