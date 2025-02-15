@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 from ollama import Client
-from utils.context_search import ContextSearch  # Import the ContextSearch class
+from utils.context_search import ContextSearch
 import utils.text_handler as th
 
 max_history_in_prompt = 6
