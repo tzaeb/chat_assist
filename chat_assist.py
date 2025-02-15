@@ -1,8 +1,14 @@
 import streamlit as st
 import json
-import re
 from ollama import Client
 from utils.context_search import ContextSearch  # Import the ContextSearch class
+import utils.text_handler as th
+
+max_history_in_prompt = 6
+context_prompt = "You are an AI assistant, answering user questions accurately."
+
+client = Client(host="http://localhost:11434")
+
 
 st.title("Chat Assist")
 
@@ -37,24 +43,10 @@ with st.sidebar:
 # Initialize ContextSearch with uploaded context (if available)
 context_search = ContextSearch(context_data=st.session_state.get("file_context", []))
 
-max_history_in_prompt = 6
-context_prompt = "You are an AI assistant, answering user questions accurately."
-
-client = Client(host="http://localhost:11434")
-
-def extract_image_urls(text):
-    return re.findall(r"(https?://\S+\.(?:png|jpg|jpeg|gif))", text)
 
 def get_history(max=max_history_in_prompt):
     return "\n".join(f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages[-max:])
 
-def format_file_context(file_name, file_content):
-    return f"""Additional context:\n
-[file name]: {file_name}
-[file content begin]
-{file_content}
-[file content end]
-"""
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -63,7 +55,7 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        for url in extract_image_urls(message["content"]):
+        for url in th.extract_image_urls(message["content"]):
             st.image(url, use_container_width=True)
 
 # Get user input
@@ -76,7 +68,7 @@ if prompt := st.chat_input("Enter your message"):
     relevant_file_context = context_search.find_relevant_context(prompt)
 
     if uploaded_file and relevant_file_context.strip():
-        final_prompt = f"{context_prompt}\n{format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n\n"
+        final_prompt = f"{context_prompt}\n{th.format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n\n"
     else:
         final_prompt = f"{context_prompt}\n\n{get_history()}\n\n"
 
@@ -129,6 +121,6 @@ if prompt := st.chat_input("Enter your message"):
     
     if uploaded_file and relevant_file_context.strip():
         with st.expander("Relevant Context Matches"):
-            st.markdown(f"```{format_file_context(uploaded_file.name, relevant_file_context)}```")
+            st.markdown(f"```{th.format_file_context(uploaded_file.name, relevant_file_context)}```")
 
     st.session_state.messages.append({"role": "assistant", "content": main_text.replace("<think>\n", "")})
