@@ -14,21 +14,6 @@ def mock_session_state():
         {"role": "assistant", "content": "I am fine, thank you!"}
     ]
 
-# Provide sample data for ContextSearch
-@pytest.fixture
-def sample_data():
-    return [
-        "Autonomous vehicles struggle in heavy rain due to sensor interference.",
-        "Machine learning models require extensive datasets to improve predictions.",
-        "Cybersecurity threats are increasing with the rise of AI-powered systems."
-    ]
-
-# Instantiate ContextSearch with sample data
-@pytest.fixture
-def context_search_instance(sample_data):
-    return ContextSearch(context_data=sample_data)
-
-
 def test_extract_image_urls():
     """Ensure that image URLs are correctly extracted from text."""
     text = "Check this image: https://example.com/image.jpg and this one: https://example.com/image2.png"
@@ -48,44 +33,35 @@ def test_get_history_max(mock_session_state):
     assert "user: Hello, how are you?" not in history, "User message should not be in truncated history."
     assert "assistant: I am fine, thank you!" in history, "Assistant response should be retained in history."
 
+def test_load_document_text():
+    text = "This is a test document. It contains multiple sentences."
+    cs = ContextSearch(text)
+    assert cs.document == text
 
-def test_embedding_creation(context_search_instance):
-    """Ensure that FAISS index is correctly created."""
-    assert context_search_instance.index is not None, "FAISS index should be initialized."
-    assert isinstance(context_search_instance.index, faiss.IndexFlatL2), "FAISS index should be of type IndexFlatL2."
+def test_load_document_binary():
+    binary_content = b"This is a binary test document."
+    cs = ContextSearch(binary_content.decode("utf-8"))
+    assert cs.document == "This is a binary test document."
 
+def test_invalid_file_content():
+    with pytest.raises(ValueError):
+        ContextSearch(1234)  # Invalid input type
 
-def test_find_relevant_context(context_search_instance):
-    """Ensure relevant context is retrieved for a query."""
-    query = "Why do self-driving cars have issues in rain?"
-    result = context_search_instance.find_relevant_context(query)
-    assert "Autonomous vehicles struggle in heavy rain due to sensor interference." in result, "Relevant text should be found in results."
+def test_create_faiss_index():
+    text = "This is a sentence. Here is another."
+    cs = ContextSearch(text)
+    assert cs.index is not None
+    assert cs.index.ntotal == len(cs.sentences)
 
+def test_query_results():
+    text = "This is a test document. It contains multiple sentences about different topics."
+    cs = ContextSearch(text)
+    results = cs.query("test document", top_k=1)
+    assert len(results) > 0
+    assert "test document" in results[0][0]
 
-def test_empty_query(context_search_instance):
-    """Ensure that an empty query returns an empty string."""
-    query = ""
-    result = context_search_instance.find_relevant_context(query)
-    assert result == "", "Empty query should return an empty string."
-
-
-def test_no_relevant_match(context_search_instance):
-    """Ensure that an irrelevant query returns an empty string."""
-    query = "How do fish swim?"
-    result = context_search_instance.find_relevant_context(query)
-    assert result == "", "Irrelevant query should return an empty string."
-
-
-def test_threshold_behavior(context_search_instance):
-    """Ensure that results respect the similarity threshold."""
-    query = "Tell me about AI predictions."
-    result = context_search_instance.find_relevant_context(query, similarity_threshold=0.9)
-    assert result == "", "High threshold should filter out less relevant results."
-
-
-def test_empty_context():
-    """Ensure that an empty context list does not cause errors."""
-    vectorization = ContextSearch(context_data=[])
-    query = "What is AI?"
-    result = vectorization.find_relevant_context(query)
-    assert result == "", "Query on empty context should return an empty string."
+def test_query_no_results():
+    text = "This is a completely different text with no relation to the query."
+    cs = ContextSearch(text)
+    results = cs.query("unrelated topic", top_k=1)
+    assert len(results) == 0

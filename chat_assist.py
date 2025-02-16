@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+import docx
 from ollama import Client
 from utils.context_search import ContextSearch
 import utils.text_handler as th
@@ -8,7 +9,6 @@ max_history_in_prompt = 6
 context_prompt = "You are an AI assistant, answering user questions accurately."
 
 client = Client(host="http://localhost:11434")
-
 
 st.title("Chat Assist")
 
@@ -28,25 +28,22 @@ with st.sidebar:
     )
     
     # File uploader
-    uploaded_file = st.file_uploader("Upload a text file for additional context", type=["txt", "json"])
+    uploaded_file = st.file_uploader("Upload a text or DOCX file for additional context", type=["txt", "json", "docx"])
+    file_content = ""
     if uploaded_file is not None:
-        file_content = uploaded_file.read().decode("utf-8")
-        if uploaded_file.name.endswith(".json"):
-            try:
-                parsed_json = json.loads(file_content)
-                file_content = json.dumps(parsed_json, indent=2)
-            except json.JSONDecodeError:
-                st.error("Invalid JSON file")
-        
-        st.session_state.file_context = th.chunk_text_by_sections(file_content)  # Store as list for FAISS indexing
+        if uploaded_file.type == "text/plain":
+            file_content = uploaded_file.read().decode("utf-8")
+        elif uploaded_file.type == "application/json":
+            file_content = json.dumps(json.load(uploaded_file))
+        elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            doc = docx.Document(uploaded_file)
+            file_content = "\n".join(para.text for para in doc.paragraphs)
 
 # Initialize ContextSearch with uploaded context (if available)
-context_search = ContextSearch(context_data=st.session_state.get("file_context", []))
-
+context_search = ContextSearch(file_content=file_content)
 
 def get_history(max=max_history_in_prompt):
     return "\n".join(f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages[-max:])
-
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -65,12 +62,17 @@ if prompt := st.chat_input("Enter your message"):
         st.markdown(prompt)
 
     # Retrieve relevant context
-    relevant_file_context = context_search.find_relevant_context(prompt)
+    relevant_file_context = context_search.query(prompt)
 
-    if uploaded_file and relevant_file_context.strip():
-        final_prompt = f"{context_prompt}\n{th.format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n\n"
+    if uploaded_file and relevant_file_context:
+        final_prompt = f"{context_prompt}\n{th.format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n"
     else:
-        final_prompt = f"{context_prompt}\n\n{get_history()}\n\n"
+        final_prompt = f"{context_prompt}\n\n{get_history()}\n"
+
+    
+    if uploaded_file and relevant_file_context:
+        with st.expander("Relevant Context Matches"):
+            st.markdown(f"{th.format_file_context(uploaded_file.name, relevant_file_context)}")
 
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
@@ -118,9 +120,5 @@ if prompt := st.chat_input("Enter your message"):
     if thinking_text.strip():
         with st.expander("Bot's Internal Reasoning"):
             st.markdown(thinking_text)
-    
-    if uploaded_file and relevant_file_context.strip():
-        with st.expander("Relevant Context Matches"):
-            st.markdown(f"```{th.format_file_context(uploaded_file.name, relevant_file_context)}```")
 
     st.session_state.messages.append({"role": "assistant", "content": main_text.replace("<think>\n", "")})
