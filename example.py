@@ -9,7 +9,7 @@ install via ollama, e.g.:
 ollama run deepseek-r1:1.5b
 '''
 
-from chat_assist import Client
+from ollama import Client
 
 ai_model = "deepseek-r1:1.5b"
 client = Client(host='http://localhost:11434')
@@ -33,5 +33,5 @@ NameError: name 'b' is not defined
 prompt = f"How can I solve following error: {error}"
 
 
-#stream_response(prompt)
-print(get_response(prompt))
+stream_response(prompt)
+#print(get_response(prompt))
