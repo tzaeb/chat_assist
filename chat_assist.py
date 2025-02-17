@@ -19,7 +19,9 @@ with st.sidebar:
         "DeepSeek-R1 1.5B": "deepseek-r1:1.5b",
         "DeepSeek-R1 8B": "deepseek-r1:8b",
         "DeepSeek-R1 14B": "deepseek-r1:14b",
-        "llama 3.1 8B": "llama3.1:8b"
+        "llama 3.1 8B": "llama3.1:8b",
+        "llama 3.2 3B": "llama3.2",
+        "Mistral 7B": "mistral"
     }
     selected_model = st.selectbox(
         "Select the AI model:",
