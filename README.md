@@ -2,12 +2,15 @@
 
 Chat Assist is an AI-powered chatbot built using `streamlit` and `ollama`, with a contextual search system leveraging `FAISS` and `sentence-transformers` for relevant response retrieval.
 
+![Chat Assist UI](chat_assist_ui.png)
+
 ## Features
 
-- **Multiple AI Model Support**: Supports models such as DeepSeek-R1 (1.5B, 8B, 14B) and LLaMA 3.1 (8B).
+- **Multiple AI Model Support**: Supports models such as DeepSeek-R1 (1.5B, 8B, 14B), LLaMA 3.1 (8B), LLaMA 3.2 (3B), and Mistral 7B.
 - **Context-Aware Responses**: Uses vectorized context matching to enhance response accuracy.
 - **Chat History Retention**: Maintains conversation history to provide coherent interactions.
 - **Embedded Context Search**: Uses FAISS to retrieve relevant stored context dynamically.
+- **File-Based Context Expansion**: Allows users to upload text, JSON, or DOCX files for additional context.
 
 ## Installation
 
@@ -42,16 +45,20 @@ This command will automatically download and install the LLaMA 3.1 model. For mo
 ## Usage
 
 1. Start the chatbot:
+
+   To guarantee that your app is only accessible from your machine, run Streamlit with the `--server.address` option set to localhost:
    ```sh
-   streamlit run chat_assist.py
+   streamlit run chat_assist.py --server.address localhost
    ```
+
 2. Select the AI model from the dropdown menu.
-3. Enter your message in the chat input.
-4. The bot retrieves relevant context and generates a response using an embedded context search system.
+3. Upload an optional file (TXT, DOCX) to provide additional context.
+4. Enter your message in the chat input.
+5. The bot retrieves relevant context and generates a response using an embedded context search system.
 
 ## How It Works
 
-Chat Assist leverages FAISS-based vectorization to dynamically retrieve relevant context from a predefined dataset. The chatbot interface is built with `streamlit`, while the AI model is hosted via `ollama`.
+Chat Assist leverages FAISS-based vectorization to dynamically retrieve relevant context from a predefined dataset or uploaded files. The chatbot interface is built with `streamlit`, while the AI model is hosted via `ollama`.
 
 ## Example Query
 
@@ -65,6 +72,7 @@ Bot: "Autonomous vehicles face challenges in heavy rain due to sensor interferen
 - Enhance model selection.
 - Improve context matching and retrieval.
 - Support for additional AI models.
+- Optimize performance for large document uploads.
 
 ## License
 
