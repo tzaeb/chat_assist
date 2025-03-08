@@ -1,10 +1,12 @@
 import streamlit as st
 import json
 import docx
+import pdfplumber
 from ollama import Client
 from utils.context_search import ContextSearch
 import utils.text_handler as th
 
+# Note: Run with --server.fileWatcherType=none to avoid RuntimeError from torch.classes in Streamlit 1.42.0 watcher
 max_history_in_prompt = 6
 context_prompt = "You are an AI assistant, answering user questions accurately."
 
@@ -21,7 +23,8 @@ with st.sidebar:
         "DeepSeek-R1 14B": "deepseek-r1:14b",
         "llama 3.1 8B": "llama3.1:8b",
         "llama 3.2 3B": "llama3.2",
-        "Mistral 7B": "mistral"
+        "Mistral 7B": "mistral",
+        "Phi 4": "phi4"
     }
     selected_model = st.selectbox(
         "Select the AI model:",
@@ -29,8 +32,11 @@ with st.sidebar:
         index=1
     )
     
-    # File uploader
-    uploaded_file = st.file_uploader("Upload a text or DOCX file for additional context", type=["txt", "json", "docx"])
+    # File uploader with PDF support
+    uploaded_file = st.file_uploader(
+        "Upload a text, DOCX, or PDF file for additional context",
+        type=["txt", "json", "docx", "pdf"]
+    )
     file_content = ""
     if uploaded_file is not None:
         if uploaded_file.type == "text/plain":
@@ -40,6 +46,12 @@ with st.sidebar:
         elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             doc = docx.Document(uploaded_file)
             file_content = "\n".join(para.text for para in doc.paragraphs)
+        elif uploaded_file.type == "application/pdf":
+            with pdfplumber.open(uploaded_file) as pdf:
+                file_content = "\n".join(page.extract_text() or "" for page in pdf.pages)
+    
+    # Button to include full document
+    include_full_doc = st.checkbox("Include full document in prompt", value=False)
 
 # Initialize ContextSearch with uploaded context (if available)
 context_search = ContextSearch(file_content=file_content)
@@ -66,13 +78,17 @@ if prompt := st.chat_input("Enter your message"):
     # Retrieve relevant context
     relevant_file_context = context_search.query(prompt)
 
-    if uploaded_file and relevant_file_context:
-        final_prompt = f"{context_prompt}\n{th.format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n"
+    if uploaded_file:
+        if include_full_doc:
+            final_prompt = f"{context_prompt}\nFull document content:\n{file_content}\n\n{get_history()}\n"
+        elif relevant_file_context:
+            final_prompt = f"{context_prompt}\n{th.format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n"
+        else:
+            final_prompt = f"{context_prompt}\n\n{get_history()}\n"
     else:
         final_prompt = f"{context_prompt}\n\n{get_history()}\n"
 
-    
-    if uploaded_file and relevant_file_context:
+    if uploaded_file and relevant_file_context and not include_full_doc:
         with st.expander("Relevant Context Matches"):
             st.markdown(f"{th.format_file_context(uploaded_file.name, relevant_file_context)}")
 
