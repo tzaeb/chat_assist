@@ -5,6 +5,7 @@ import faiss
 from sentence_transformers import SentenceTransformer
 import pdfplumber
 
+
 # Configure logging for debugging and error tracking
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

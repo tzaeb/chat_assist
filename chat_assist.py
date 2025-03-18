@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import docx
 import pdfplumber
+import yaml
 from ollama import Client
 from utils.context_search import ContextSearch
 import utils.text_handler as th
@@ -12,24 +13,27 @@ context_prompt = "You are an AI assistant, answering user questions accurately."
 
 client = Client(host="http://localhost:11434")
 
+def load_config():
+    try:
+        with open("config.yml", "r") as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        st.error("config.yml not found. Please create it with the required fields.")
+        return {}
+
+# Load configuration values
+config = load_config()
+model_options = config.get("model_options")
+
 st.title("Chat Assist")
 
 # Sidebar for model selection and file upload
 with st.sidebar:
     st.header("Settings")
-    model_options = {
-        "DeepSeek-R1 1.5B": "deepseek-r1:1.5b",
-        "DeepSeek-R1 8B": "deepseek-r1:8b",
-        "DeepSeek-R1 14B": "deepseek-r1:14b",
-        "llama 3.1 8B": "llama3.1:8b",
-        "llama 3.2 3B": "llama3.2",
-        "Mistral 7B": "mistral",
-        "Phi 4": "phi4"
-    }
     selected_model = st.selectbox(
         "Select the AI model:",
         options=list(model_options.keys()),
-        index=1
+        index=len(model_options)-1
     )
     
     # File uploader with PDF support
@@ -40,7 +44,7 @@ with st.sidebar:
     file_content = ""
     if uploaded_file is not None:
         if uploaded_file.type == "text/plain":
-            file_content = uploaded_file.read().decode("utf-8")
+            file_content = uploaded_file.read().decode("cp1252")
         elif uploaded_file.type == "application/json":
             file_content = json.dumps(json.load(uploaded_file))
         elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
@@ -75,20 +79,20 @@ if prompt := st.chat_input("Enter your message"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Retrieve relevant context
-    relevant_file_context = context_search.query(prompt)
-
     if uploaded_file:
         if include_full_doc:
-            final_prompt = f"{context_prompt}\nFull document content:\n{file_content}\n\n{get_history()}\n"
-        elif relevant_file_context:
-            final_prompt = f"{context_prompt}\n{th.format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n"
+            final_prompt = f"{context_prompt}\n{th.format_file_context(uploaded_file.name, file_content)}\n{get_history()}\n"
         else:
-            final_prompt = f"{context_prompt}\n\n{get_history()}\n"
+            # Retrieve relevant context
+            relevant_file_context = context_search.query(prompt)            
+            if relevant_file_context:
+                final_prompt = f"{context_prompt}\n{th.format_file_context(uploaded_file.name, relevant_file_context)}\n{get_history()}\n"
+            else:
+                final_prompt = f"{context_prompt}\n\n{get_history()}\n"
     else:
         final_prompt = f"{context_prompt}\n\n{get_history()}\n"
 
-    if uploaded_file and relevant_file_context and not include_full_doc:
+    if uploaded_file and not include_full_doc and relevant_file_context:
         with st.expander("Relevant Context Matches"):
             st.markdown(f"{th.format_file_context(uploaded_file.name, relevant_file_context)}")
 

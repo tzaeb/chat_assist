@@ -6,7 +6,7 @@ Chat Assist is an AI-powered chatbot built using `streamlit` and `ollama`, with 
 
 ## Features
 
-- **Multiple AI Model Support**: Supports models such as DeepSeek-R1 (1.5B, 8B, 14B), LLaMA 3.1 (8B), LLaMA 3.2 (3B), and Mistral 7B.
+- **Multiple AI Model Support**: Supports models such as DeepSeek-R1 (1.5B, 8B), LLaMA 3.1 (8B), LLaMA 3.2 (3B), Mistral 7B, etc.
 - **Context-Aware Responses**: Uses vectorized context matching to enhance response accuracy.
 - **Chat History Retention**: Maintains conversation history to provide coherent interactions.
 - **Embedded Context Search**: Uses FAISS to retrieve relevant stored context dynamically.
@@ -34,13 +34,25 @@ Ollama is required to run AI models locally. Follow the steps below to install i
 - **Windows**: Download and install Ollama from the [official website](https://ollama.com/download).
 
 ### Install AI Models
-After installing Ollama, download and run the required AI models:
+After installing Ollama, download and run the required AI models, e.g.:
 
 ```sh
 ollama run llama3.1
 ```
 
 This command will automatically download and install the LLaMA 3.1 model. For more models, visit the [Ollama model library](https://ollama.com/library).
+
+### Configure AI Models
+AI models are configured in the `config.yml` file, which lists available models and their configurations. This list can be extended to include additional models. The file structure looks like this:
+```yaml
+model_options:
+  "DeepSeek-R1 1.5B": "deepseek-r1:1.5b"
+  "DeepSeek-R1 8B": "deepseek-r1:8b"
+  "llama 3.1 8B": "llama3.1:8b"
+  "llama 3.2 3B": "llama3.2"
+  "Mistral 7B": "mistral"
+  "Gemma3 4B": "gemma3:4b"
+```
 
 ## Usage
 
