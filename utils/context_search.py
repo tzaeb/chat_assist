@@ -5,34 +5,50 @@ import faiss
 from sentence_transformers import SentenceTransformer
 import pdfplumber
 
-
 # Configure logging for debugging and error tracking
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def chunk_text(text: str, chunk_size: int = 300, chunk_overlap: int = 50) -> list[str]:
+    """
+    Splits text into overlapping chunks of specified size and overlap (measured in words).
+    """
+    words = text.split()
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = min(start + chunk_size, len(words))
+        chunk = words[start:end]
+        chunks.append(" ".join(chunk))
+        # Move start by chunk_size - overlap to create overlap
+        start += (chunk_size - chunk_overlap)
+        if start >= len(words):
+            break
+    return chunks
+
 class ContextSearch:
-    def __init__(self, file_content, top_k=5, score_threshold=0.5, window=10):
+    def __init__(self, file_content, top_k=5, score_threshold=0.5):
         """
         Initialize ContextSearch with document content and configurable parameters.
 
         Args:
             file_content (str or bytes): Text content or binary data from a file.
-            top_k (int): Number of top results to return. Default: 5.
-            score_threshold (float): Minimum similarity score (0-1). Default: 0.5.
-            window (int): Context window size around matches. Default: 10.
+            top_k (int): Default number of top results to return. Default: 5.
+            score_threshold (float): Minimum similarity score cutoff in [0..1]. Default: 0.5.
         """
         self.top_k = top_k
         self.score_threshold = score_threshold
-        self.window = window
         try:
             self.document = self._load_document(file_content)
-            self.sentences = self._split_sentences(self.document)
+            self.chunks = self._create_chunks(self.document)
             self.model = None  # Lazy-loaded
             self.index = None  # Lazy-loaded
-            logger.info(f"Initialized with {len(self.sentences)} sentences.")
+            logger.info(f"Initialized with {len(self.chunks)} chunks.")
         except Exception as e:
             logger.error(f"Initialization failed: {e}")
-            raise
+            # If there's a problem decoding or chunking, store empty text
+            self.document = ""
+            self.chunks = []
 
     def _load_document(self, file_content):
         """
@@ -48,8 +64,8 @@ class ContextSearch:
             try:
                 return file_content.decode("utf-8")
             except UnicodeDecodeError:
+                # Attempt PDF extraction
                 try:
-                    # Assume PDF if UTF-8 fails and try to extract text
                     with pdfplumber.open(file_content) as pdf:
                         return "\n".join(page.extract_text() or "" for page in pdf.pages)
                 except Exception as e:
@@ -61,176 +77,130 @@ class ContextSearch:
             logger.error(f"Invalid file content type: {type(file_content)}")
             raise ValueError("File content must be string or bytes.")
 
-    def _split_sentences(self, text):
+    def _create_chunks(self, document: str) -> list[str]:
         """
-        Split text into sentences or paragraphs.
-
-        Args:
-            text (str): Input text to split.
-
-        Returns:
-            list: List of sentence/paragraph strings.
+        Splits the document into overlapping chunks.
         """
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        if len(lines) > 1:
-            return lines
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        return [s.strip() for s in sentences if s.strip()]
+        if not document.strip():
+            return []
+        return chunk_text(document, chunk_size=200, chunk_overlap=50)
 
     def _create_faiss_index(self):
         """
-        Create a FAISS index from sentence embeddings.
-
-        Returns:
-            faiss.IndexFlatIP or None: Index if successful, None if failed.
+        Create a FAISS index from chunk embeddings.
         """
-        if not self.sentences:
+        if not self.chunks:
+            logger.warning("No chunks to index.")
             return None
         try:
+            # Lazy load the model if needed
             if self.model is None:
                 self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-            batch_size = 32  # Adjust based on hardware
-            embeddings = []
-            for i in range(0, len(self.sentences), batch_size):
-                batch = self.sentences[i:i + batch_size]
+
+            batch_size = 32
+            all_embeddings = []
+            for i in range(0, len(self.chunks), batch_size):
+                batch = self.chunks[i : i + batch_size]
                 batch_embeddings = self.model.encode(batch, convert_to_numpy=True)
-                embeddings.append(batch_embeddings)
-            embeddings = np.vstack(embeddings)
+                all_embeddings.append(batch_embeddings)
+
+            embeddings = np.vstack(all_embeddings)
+            # Normalize embeddings for dot-product use
             embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+
             dim = embeddings.shape[1]
             index = faiss.IndexFlatIP(dim)
             index.add(embeddings)
-            logger.info("FAISS index created successfully.")
+            logger.info("FAISS index created successfully for chunked embeddings.")
             return index
         except Exception as e:
             logger.error(f"Failed to create FAISS index: {e}")
             return None
 
     def _ensure_index(self):
-        """Ensure the model and index are loaded."""
-        if self.model is None or self.index is None:
+        """
+        Ensure the model and FAISS index are loaded.
+        """
+        if self.index is None:
             self.index = self._create_faiss_index()
 
-    @staticmethod
-    def _merge_intervals(intervals):
+    def query(self, query: str, top_k: int = None) -> list[dict]:
         """
-        Merge overlapping or adjacent intervals.
-
-        Args:
-            intervals (list): List of (start, end, score, match_set) tuples.
-
-        Returns:
-            list: Merged intervals.
+        Retrieve the top_k most relevant chunks to the query.
+        Returns a list of dicts with 'score' and 'chunk'.
         """
-        if not intervals:
+        if not query.strip():
             return []
-        intervals.sort(key=lambda x: x[0])
-        merged = [intervals[0]]
-        for current in intervals[1:]:
-            last = merged[-1]
-            if current[0] <= last[1] + 1:
-                merged[-1] = (
-                    last[0],
-                    max(last[1], current[1]),
-                    max(last[2], current[2]),
-                    last[3] | current[3]
-                )
-            else:
-                merged.append(current)
-        return merged
-
-    def query(self, query, top_k=None, score_threshold=None, window=None):
-        """
-        Search for similar sentences and return context blocks.
-
-        Args:
-            query (str): Search query.
-            top_k (int, optional): Override default top_k.
-            score_threshold (float, optional): Override default threshold.
-            window (int, optional): Override default window.
-
-        Returns:
-            list: List of dicts with 'text', 'score', 'start_idx', 'end_idx', 'matches'.
-        """
-        top_k = top_k if top_k is not None else self.top_k
-        score_threshold = score_threshold if score_threshold is not None else self.score_threshold
-        window = window if window is not None else self.window
 
         self._ensure_index()
-        if not self.index:
-            logger.warning("No index available for search.")
+        if not self.index or not self.chunks:
+            logger.warning("Index or chunks are not available.")
             return []
 
+        if top_k is None:
+            top_k = self.top_k
+
         try:
+            # Embed the query
+            if self.model is None:
+                self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
             q_embedding = self.model.encode([query], convert_to_numpy=True)
             q_embedding = q_embedding / np.linalg.norm(q_embedding, axis=1, keepdims=True)
+
             scores, indices = self.index.search(q_embedding, top_k)
+            # scores, indices are arrays of shape [1, top_k]
 
-            intervals = []
-            for score, idx in zip(scores[0], indices[0]):
-                if score < score_threshold:
-                    continue
-                start = max(0, idx - window)
-                end = min(len(self.sentences) - 1, idx + window)
-                intervals.append((start, end, float(score), {idx}))
-
-            merged_intervals = self._merge_intervals(intervals)
             results = []
-            for start, end, score, match_set in merged_intervals:
-                block_sentences = []
-                for i in range(start, end + 1):
-                    s = self.sentences[i]
-                    if i in match_set:
-                        s = f"[[[{s}]]]"  # Highlight matches
-                    block_sentences.append(s)
-                text = " ".join(block_sentences)
-                result = {
-                    "text": "… " + text + " …" if start > 0 or end < len(self.sentences) - 1 else text,
-                    "score": score,
-                    "start_idx": start,
-                    "end_idx": end,
-                    "matches": list(match_set)
-                }
-                results.append(result)
-            logger.info(f"Query returned {len(results)} results.")
+            for score, idx in zip(scores[0], indices[0]):
+                # Dot product of normalized vectors is effectively a similarity in [0..1]
+                if score >= self.score_threshold:
+                    results.append({
+                        "score": float(score),
+                        "chunk": self.chunks[idx],
+                        "index": idx
+                    })
+
+            # Sort by highest similarity score first
+            results.sort(key=lambda x: x["score"], reverse=True)
+            logger.info(f"Query '{query}' returned {len(results)} relevant chunks.")
             return results
         except Exception as e:
             logger.error(f"Query failed: {e}")
             return []
 
 def main():
-    """Simple test function for ContextSearch."""
-    import os
-    import docx
-    file_path = input("Enter text, DOCX, or PDF file path: ")
-    if not os.path.isfile(file_path):
-        print("File not found.")
-        return
-    
-    ext = os.path.splitext(file_path)[1].lower()
-    if ext == ".txt":
-        with open(file_path, "r", encoding="utf-8") as f:
-            file_content = f.read()
-    elif ext in (".doc", ".docx"):
-        doc = docx.Document(file_path)
-        file_content = "\n".join(para.text for para in doc.paragraphs)
-    elif ext == ".pdf":
-        with pdfplumber.open(file_path) as pdf:
-            file_content = "\n".join(page.extract_text() or "" for page in pdf.pages)
-    else:
-        print("Unsupported file type.")
-        return
+    """
+    Simple test to verify chunk creation and querying using ContextSearch.
+    """
+    # Sample text for demonstration
+    sample_text = (
+        "This is a short text talking about Python. "
+        "Python is a popular programming language. "
+        "We can also mention FAISS, which is a library for similarity search. "
+        "FAISS is developed by Facebook AI Research. "
+        "Sentence Transformers can produce embeddings for semantic search."
+    )
 
-    cs = ContextSearch(file_content)
-    while True:
-        query = input("Enter your search query (or 'exit' to quit): ")
-        if query.lower() == "exit":
-            break
-        results = cs.query(query)
-        for result in results:
-            print(f"Score: {result['score']:.3f}")
-            print(f"Context: {result['text']}")
-            print(f"Indices: {result['start_idx']}–{result['end_idx']}\n")
+    # Initialize the ContextSearch object
+    search_tool = ContextSearch(sample_text)
 
+    # Print out the chunks that got created
+    print("Created Chunks:")
+    for idx, chunk in enumerate(search_tool.chunks):
+        print(f"Chunk {idx}: {chunk}")
+
+    # Perform a query
+    test_query = "What is FAISS?"
+    print(f"\nRunning query: {test_query}\n")
+    results = search_tool.query(test_query, top_k=3)
+
+    # Display the results
+    for i, res in enumerate(results):
+        print(f"Result {i+1}:")
+        print(f"  Score: {res['score']}")
+        print(f"  Chunk: {res['chunk']}\n")
+
+# Standard Python entry point
 if __name__ == "__main__":
     main()
