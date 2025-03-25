@@ -1,8 +1,0 @@
-model_options: 
-  "Deepseek-r1 7B": "deepseek-r1:7b"
-  "llama 3.1 8B": "llama3.1:8b"
-  "Mistral 7B": "mistral"
-  "Mistral Small 3": "mistral-small:24b"
-  "Mistral 3.1 24B": "MHKetbi/Mistral-Small3.1-24B-Instruct-2503"
-  "Gemma 3 1B": "gemma3:1b"
-  "qwen 2.5 coder 14B": "qwen2.5-coder:14b"
