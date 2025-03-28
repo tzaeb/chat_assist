@@ -91,21 +91,24 @@ if prompt := st.chat_input("Enter your message"):
     if uploaded_file:
         # Option 1: Use full document in the prompt
         if include_full_doc:
-            final_prompt = f"{context_prompt}\n" \
-                           f"{th.format_file_context(uploaded_file.name, file_content)}\n" \
-                           f"{get_history()}\n"
+            final_prompt = (
+                f"{context_prompt}\n"
+                f"{th.format_file_context(uploaded_file.name, file_content)}\n"
+                f"{get_history()}\n"
+            )
         # Option 2: Retrieve top-k chunks
         else:
             retrieved_contexts = context_search.query(prompt, top_k=3)  # adjust top_k as needed
             if retrieved_contexts:
-                # Combine relevant chunks
                 context_text = "\n".join(
                     f"Chunk #{i+1} (Score: {res['score']:.2f}):\n{res['chunk']}"
                     for i, res in enumerate(retrieved_contexts)
                 )
-                final_prompt = f"{context_prompt}\n" \
-                           f"{th.format_file_context(uploaded_file.name, context_text)}\n" \
-                           f"{get_history()}\n"
+                final_prompt = (
+                    f"{context_prompt}\n"
+                    f"{th.format_file_context(uploaded_file.name, context_text)}\n"
+                    f"{get_history()}\n"
+                )
             else:
                 final_prompt = f"{context_prompt}\n\n{get_history()}\n"
     else:
@@ -120,12 +123,17 @@ if prompt := st.chat_input("Enter your message"):
                 for i, res in enumerate(retrieved_contexts):
                     st.markdown(f"**Chunk #{i+1} (Score {res['score']:.2f}):**\n{res['chunk']}")
 
-    # Stream the response
+    # Stream the response and display reasoning as it is being built.
     with st.chat_message("assistant"):
+        # Create an expander with a spinner-like status for the internal reasoning.
+        reasoning_expander = st.expander("Bot's Internal Reasoning")
+        reasoning_placeholder = reasoning_expander.empty()
+
         response_placeholder = st.empty()
+        
         main_text = ""
-        thinking_text = ""
-        in_think = False
+        reasoning_text = ""
+        in_reasoning = False
 
         # Debug printing
         print("-------------------------------------------------------------------")
@@ -139,38 +147,33 @@ if prompt := st.chat_input("Enter your message"):
             stream=True
         )
 
-        # Process streaming chunks
+        # Process streaming chunks with support for both <think> and <thought> markers
         for chunk in stream:
             text = chunk["response"]
-            if not in_think:
-                if "<think>" in text:
-                    parts = text.split("<think>", 1)
-                    main_text += "<think>\n"
-                    in_think = True
-                    if "</think>" in parts[1]:
-                        think_part, after_think = parts[1].split("</think>", 1)
-                        thinking_text += think_part
-                        in_think = False
-                        main_text += after_think
+            while text:
+                if not in_reasoning:
+                    idx_think = text.find("<think>")
+                    if idx_think == -1:
+                        main_text += text
+                        text = ""
                     else:
-                        thinking_text += parts[1]
+                        main_text += text[:idx_think]
+                        in_reasoning = True
+                        text = text[idx_think + len("<think>"):]
                 else:
-                    main_text += text
-            else:
-                if "</think>" in text:
-                    think_part, after_think = text.split("</think>", 1)
-                    thinking_text += think_part
-                    in_think = False
-                    main_text += after_think
-                else:
-                    thinking_text += text
-
+                    closing_tag = "</think>"
+                    idx_closing = text.find(closing_tag)
+                    if idx_closing == -1:
+                        reasoning_text += text
+                        text = ""
+                    else:
+                        reasoning_text += text[:idx_closing]
+                        in_reasoning = False
+                        text = text[idx_closing + len(closing_tag):]
+            # Update both the main response and the reasoning expander in real time.
             response_placeholder.markdown(main_text)
+            if reasoning_text.strip():
+                reasoning_placeholder.markdown(reasoning_text)
 
-    # Optionally display the bot's internal reasoning
-    if thinking_text.strip():
-        with st.expander("Bot's Internal Reasoning"):
-            st.markdown(thinking_text)
-
-    # Add assistant response to session messages
-    st.session_state.messages.append({"role": "assistant", "content": main_text.replace("<think>\n", "")})
+    # Add assistant response to session messages (reasoning tags removed)
+    st.session_state.messages.append({"role": "assistant", "content": main_text})
