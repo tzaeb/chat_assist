@@ -9,33 +9,99 @@ import pdfplumber
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def chunk_text(text: str, chunk_size: int = 300, chunk_overlap: int = 50) -> list[str]:
+def split_into_paragraphs(text: str) -> list[str]:
     """
-    Splits text into overlapping chunks of specified size and overlap (measured in words).
+    Split the text into paragraphs using blank lines as delimiters.
+    You can adjust this to suit your input formatting.
     """
-    words = text.split()
-    chunks = []
-    start = 0
-    while start < len(words):
-        end = min(start + chunk_size, len(words))
-        chunk = words[start:end]
-        chunks.append(" ".join(chunk))
-        # Move start by chunk_size - overlap to create overlap
-        start += (chunk_size - chunk_overlap)
-        if start >= len(words):
-            break
-    return chunks
+    text = text.strip()
+    if not text:
+        return []
+    # Splits on one or more blank lines
+    paragraphs = re.split(r"\n\s*\n", text)
+    # Remove paragraphs that are just whitespace
+    paragraphs = [p.strip() for p in paragraphs if p.strip()]
+    return paragraphs
+
+def split_paragraph_into_sentences(paragraph: str) -> list[str]:
+    """
+    Very naive sentence splitting based on punctuation.
+    This can be replaced with more robust methods (e.g., spaCy, NLTK) if desired.
+    """
+    paragraph = paragraph.strip()
+    if not paragraph:
+        return []
+    # Regex that splits on a period, exclamation point, or question mark,
+    # followed by whitespace or the paragraph end.
+    # Keep the punctuation by using a lookbehind.
+    sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+    # Clean up trailing whitespace
+    sentences = [s.strip() for s in sentences if s.strip()]
+    return sentences
+
+def create_contextual_chunks(
+    text: str,
+    max_words_per_chunk: int = 80,
+    min_words_per_chunk: int = 30,
+    overlap: int = 10
+) -> list[str]:
+    """
+    Naive approach to chunk text at paragraph & sentence boundaries:
+      1) Split into paragraphs.
+      2) For each paragraph, split into sentences.
+      3) Accumulate sentences until hitting max_words_per_chunk.
+      4) Optionally add overlap for better context continuity.
+
+    Args:
+        text (str): Original text to chunk.
+        max_words_per_chunk (int): Target upper bound on chunk size in words.
+        min_words_per_chunk (int): Minimum words before allowing a new chunk.
+        overlap (int): Overlap in words between consecutive chunks for continuity.
+
+    Returns:
+        list[str]: List of chunked text segments.
+    """
+    paragraphs = split_into_paragraphs(text)
+    all_chunks = []
+
+    for paragraph in paragraphs:
+        sentences = split_paragraph_into_sentences(paragraph)
+        current_chunk = []
+        current_length = 0
+
+        for sent in sentences:
+            words_in_sent = len(sent.split())
+            # If adding this sentence goes beyond max_words, finalize current chunk
+            if current_chunk and (current_length + words_in_sent) > max_words_per_chunk:
+                chunk_text = " ".join(current_chunk)
+                all_chunks.append(chunk_text)
+
+                # Overlap: take the last X words from the finished chunk as a “prefix”
+                # to preserve context for the next chunk
+                if overlap > 0:
+                    overlap_words = chunk_text.split()[-overlap:]
+                    current_chunk = overlap_words.copy()
+                    current_length = len(current_chunk)
+                else:
+                    current_chunk = []
+                    current_length = 0
+
+            # Add new sentence to the chunk
+            current_chunk.append(sent)
+            current_length += words_in_sent
+
+        # End of paragraph: push whatever remains in current_chunk if not too small
+        if current_chunk and current_length >= min_words_per_chunk:
+            all_chunks.append(" ".join(current_chunk))
+
+    return all_chunks
+
 
 class ContextSearch:
+    """
+    ContextSearch with more “contextual” chunking instead of fixed word count.
+    """
     def __init__(self, file_content, top_k=5, score_threshold=0.5):
-        """
-        Initialize ContextSearch with document content and configurable parameters.
-
-        Args:
-            file_content (str or bytes): Text content or binary data from a file.
-            top_k (int): Default number of top results to return. Default: 5.
-            score_threshold (float): Minimum similarity score cutoff in [0..1]. Default: 0.5.
-        """
         self.top_k = top_k
         self.score_threshold = score_threshold
         try:
@@ -44,22 +110,13 @@ class ContextSearch:
             self.model = None  # Lazy-loaded
             self.index = None  # Lazy-loaded
             logger.info(f"Initialized with {len(self.chunks)} chunks.")
+            logger.debug(f"Chunks {self.chunks}")
         except Exception as e:
             logger.error(f"Initialization failed: {e}")
-            # If there's a problem decoding or chunking, store empty text
             self.document = ""
             self.chunks = []
 
     def _load_document(self, file_content):
-        """
-        Load and decode file content into plain text.
-
-        Args:
-            file_content (str or bytes): Raw content to process.
-
-        Returns:
-            str: Decoded text content.
-        """
         if isinstance(file_content, bytes):
             try:
                 return file_content.decode("utf-8")
@@ -79,21 +136,24 @@ class ContextSearch:
 
     def _create_chunks(self, document: str) -> list[str]:
         """
-        Splits the document into overlapping chunks.
+        Create more context-aware chunks using paragraphs and sentences.
+        Adjust the parameters (max_words_per_chunk, min_words_per_chunk, overlap)
+        to tweak chunk size and overlap.
         """
         if not document.strip():
             return []
-        return chunk_text(document, chunk_size=200, chunk_overlap=50)
+        return create_contextual_chunks(
+            text=document,
+            max_words_per_chunk=80,  # Tweak as needed
+            min_words_per_chunk=10,  # Ensures we don't create tiny fragments
+            overlap=10               # Overlap in words for continuity
+        )
 
     def _create_faiss_index(self):
-        """
-        Create a FAISS index from chunk embeddings.
-        """
         if not self.chunks:
             logger.warning("No chunks to index.")
             return None
         try:
-            # Lazy load the model if needed
             if self.model is None:
                 self.model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
@@ -118,17 +178,10 @@ class ContextSearch:
             return None
 
     def _ensure_index(self):
-        """
-        Ensure the model and FAISS index are loaded.
-        """
         if self.index is None:
             self.index = self._create_faiss_index()
 
     def query(self, query: str, top_k: int = None) -> list[dict]:
-        """
-        Retrieve the top_k most relevant chunks to the query.
-        Returns a list of dicts with 'score' and 'chunk'.
-        """
         if not query.strip():
             return []
 
@@ -161,7 +214,6 @@ class ContextSearch:
                         "index": idx
                     })
 
-            # Sort by highest similarity score first
             results.sort(key=lambda x: x["score"], reverse=True)
             logger.info(f"Query '{query}' returned {len(results)} relevant chunks.")
             return results
@@ -173,34 +225,30 @@ def main():
     """
     Simple test to verify chunk creation and querying using ContextSearch.
     """
-    # Sample text for demonstration
     sample_text = (
-        "This is a short text talking about Python. "
-        "Python is a popular programming language. "
-        "We can also mention FAISS, which is a library for similarity search. "
-        "FAISS is developed by Facebook AI Research. "
-        "Sentence Transformers can produce embeddings for semantic search."
+        "Paragraph one: Python is a popular programming language. It’s often used for "
+        "data science, automation, and backend web development.\n\n"
+        "Paragraph two: FAISS is a library for efficient similarity search and clustering "
+        "of dense vectors. It is created by Facebook AI Research.\n\n"
+        "Paragraph three: This chunk-based approach tries to keep ideas together, "
+        "rather than simply slicing after a fixed number of words."
     )
 
-    # Initialize the ContextSearch object
     search_tool = ContextSearch(sample_text)
 
-    # Print out the chunks that got created
     print("Created Chunks:")
     for idx, chunk in enumerate(search_tool.chunks):
-        print(f"Chunk {idx}: {chunk}")
+        print(f"Chunk {idx}:", chunk)
+        print("-" * 70)
 
-    # Perform a query
-    test_query = "What is FAISS?"
+    test_query = "Tell me about FAISS."
     print(f"\nRunning query: {test_query}\n")
     results = search_tool.query(test_query, top_k=3)
 
-    # Display the results
     for i, res in enumerate(results):
         print(f"Result {i+1}:")
         print(f"  Score: {res['score']}")
         print(f"  Chunk: {res['chunk']}\n")
 
-# Standard Python entry point
 if __name__ == "__main__":
     main()
