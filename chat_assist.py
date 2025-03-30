@@ -47,7 +47,41 @@ with st.sidebar:
         file_content = FileHandler.extract_content(uploaded_file)
 
     # Button to include full document
-    include_full_doc = st.checkbox("Include full document in prompt", value=False)
+    include_full_doc = st.checkbox("Include full document", value=False)
+    
+    # Add a horizontal separator
+    st.sidebar.divider()
+    
+    # Add a clear chat history section
+    st.sidebar.markdown("### Chat Management")
+    
+    # Initialize confirmation state if it doesn't exist
+    if "confirm_clear" not in st.session_state:
+        st.session_state.confirm_clear = False
+    
+    # Primary clear history button
+    if not st.session_state.confirm_clear:
+        if st.sidebar.button("🗑️ Clear Chat History", use_container_width=True):
+            st.session_state.confirm_clear = True
+            st.rerun()
+    
+    # Show confirmation UI when confirm_clear is True
+    if st.session_state.confirm_clear:
+        st.sidebar.warning("Are you sure? This cannot be undone.")
+        col1, col2 = st.sidebar.columns(2)
+        
+        with col1:
+            if st.button("Yes, Clear", type="primary", use_container_width=True):
+                # Clear the conversation history
+                ConversationManager.clear_history()
+                st.session_state.confirm_clear = False
+                st.sidebar.success("Chat history cleared!")
+                st.rerun()
+        
+        with col2:
+            if st.button("Cancel", use_container_width=True):
+                st.session_state.confirm_clear = False
+                st.rerun()
 
 # Initialize ContextSearch with uploaded context (if available)
 context_search = ContextSearch(file_content=file_content)

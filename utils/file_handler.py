@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import docx
 import pdfplumber
+import pandas as pd
 from typing import Tuple, Optional, List, Dict, Any, Union
 
 
@@ -15,7 +16,9 @@ class FileHandler:
         "txt": "Text files",
         "json": "JSON files",
         "docx": "Word documents",
-        "pdf": "PDF documents"
+        "pdf": "PDF documents",
+        "csv": "CSV spreadsheets",
+        "xlsx": "Excel spreadsheets"
     }
     
     @staticmethod
@@ -74,6 +77,43 @@ class FileHandler:
             elif file_type == "application/pdf":
                 with pdfplumber.open(uploaded_file) as pdf:
                     return "\n".join(page.extract_text() or "" for page in pdf.pages)
+            
+            # CSV files
+            elif file_type == "text/csv" or uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+                # Show a preview in the UI
+                with st.expander("CSV Preview", expanded=False):
+                    st.dataframe(df.head(10))
+                # Return a string representation
+                return df.to_string(index=False)
+                
+            # Excel files
+            elif file_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" or uploaded_file.name.endswith('.xlsx'):
+                # Read all sheets
+                sheet_to_df_map = pd.read_excel(uploaded_file, sheet_name=None)
+                
+                # Show a preview in the UI with tabs for each sheet
+                with st.expander("Excel Preview", expanded=False):
+                    if len(sheet_to_df_map) > 1:
+                        sheet_tabs = st.tabs(list(sheet_to_df_map.keys()))
+                        for i, (sheet_name, df) in enumerate(sheet_to_df_map.items()):
+                            with sheet_tabs[i]:
+                                st.write(f"Sheet: {sheet_name}")
+                                st.dataframe(df.head(10))
+                    else:
+                        # Just one sheet
+                        sheet_name = list(sheet_to_df_map.keys())[0]
+                        st.write(f"Sheet: {sheet_name}")
+                        st.dataframe(sheet_to_df_map[sheet_name].head(10))
+                
+                # Return a string representation of all sheets
+                result = []
+                for sheet_name, df in sheet_to_df_map.items():
+                    result.append(f"--- Sheet: {sheet_name} ---")
+                    result.append(df.to_string(index=False))
+                    result.append("\n")
+                
+                return "\n".join(result)
             
             # Unsupported file types
             else:
