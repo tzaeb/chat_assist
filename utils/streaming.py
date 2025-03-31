@@ -85,8 +85,8 @@ class StreamingResponseHandler:
                         st.markdown(self.reasoning_text)
                 
                 # Display main text AFTER reasoning
-                cursor = "" if final else "▌"  # Add cursor effect during streaming
-                st.markdown(self.main_text + cursor)
+                #cursor = "" if final else "▌"  # Add cursor effect during streaming
+                st.markdown(self.main_text)# + cursor)
     
     def finalize(self):
         """

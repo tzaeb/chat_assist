@@ -1,4 +1,3 @@
-import utils.text_handler as th
 
 class PromptBuilder:
     """
@@ -16,6 +15,13 @@ class PromptBuilder:
         self.context_prompt = context_prompt
         self.context_search = context_search
     
+    def _format_file_context(self, file_name, file_content):
+        return f"""This is some additional context:
+            [file name]: {file_name}
+            [file content begin]
+            {file_content}
+            [file content end]"""
+
     def build_prompt(self, user_prompt, conversation_history, uploaded_file=None, file_content="", include_full_doc=False):
         """
         Build a prompt for the LLM based on the user's input, conversation history, and context.
@@ -35,7 +41,7 @@ class PromptBuilder:
             if include_full_doc:
                 return (
                     f"{self.context_prompt}\n"
-                    f"{th.format_file_context(uploaded_file.name, file_content)}\n"
+                    f"{self._format_file_context(uploaded_file.name, file_content)}\n"
                     f"{conversation_history}\n"
                 )
             # Option 2: Retrieve top-k chunks
@@ -48,7 +54,7 @@ class PromptBuilder:
                     )
                     return (
                         f"{self.context_prompt}\n"
-                        f"{th.format_file_context(uploaded_file.name, context_text)}\n"
+                        f"{self._format_file_context(uploaded_file.name, context_text)}\n"
                         f"{conversation_history}\n"
                     )
         

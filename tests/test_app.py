@@ -2,7 +2,7 @@ import pytest
 import streamlit as st
 from utils.conversation import ConversationManager
 from utils.context_search import ContextSearch
-from utils.text_handler import extract_image_urls
+
 
 # Mock Streamlit's session_state for testing
 class MockSessionState(dict):
@@ -27,14 +27,6 @@ def mock_session_state(monkeypatch):
     
     monkeypatch.setattr(st, "session_state", mock_state)
     return mock_state
-
-def test_extract_image_urls():
-    text = (
-        "Check this image: https://example.com/image.jpg "
-        "and this one: https://example.com/image2.png"
-    )
-    expected_urls = ["https://example.com/image.jpg", "https://example.com/image2.png"]
-    assert extract_image_urls(text) == expected_urls
 
 def test_get_history(mock_session_state):
     history = ConversationManager.get_history()

@@ -1,8 +1,8 @@
 import streamlit as st
 import yaml
+import re
 from ollama import Client
 from utils.context_search import ContextSearch
-import utils.text_handler as th
 from utils.streaming import StreamingResponseHandler
 from utils.prompt_builder import PromptBuilder
 from utils.file_handler import FileHandler
@@ -96,7 +96,8 @@ ConversationManager.initialize_session()
 for message in ConversationManager.get_messages():
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        for url in th.extract_image_urls(message["content"]):
+        image_urls = re.findall(r"(https?://\S+\.(?:png|jpg|jpeg|gif))", message["content"])
+        for url in image_urls:
             st.image(url, use_container_width=True)
 
 # Capture user input
