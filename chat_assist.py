@@ -10,7 +10,11 @@ from utils.conversation import ConversationManager
 
 # Note: Run with --server.fileWatcherType=none to avoid RuntimeError from torch.classes in Streamlit 1.42.0 watcher
 max_history_in_prompt = 6
-context_prompt = "Use the following context (if relevant) to answer the question. If no relevant info is found, say so."
+context_prompt = """
+"You are an AI assistant. 
+If relevant context is available, cite and use it to give a precise and helpful answer. 
+If no applicable context is found, offer a general response without speculation."
+"""
 
 client = Client(host="http://localhost:11434")
 
@@ -24,19 +28,34 @@ def load_config():
 
 # Load configuration values
 config = load_config()
-model_options = config.get("model_options")
+models = config.get("models", {})
+model_scenarios = config.get("model_scenarios", {})
+
+# Create the display options for the selectbox
+model_names = list(models.keys())
+scenario_names = list(model_scenarios.keys())
 
 st.title("Chat Assist")
 
 # Sidebar for model selection and file upload
 with st.sidebar:
-    st.header("Settings")
     selected_model = st.selectbox(
         "Select the AI model:",
-        options=list(model_options.keys()),
-        index=len(model_options) - 1
+        options=model_names,
+        index=len(model_names) - 1 if model_names else 0
     )
-
+    
+    selected_scenario = st.selectbox(
+        "Select scenario:",
+        options=scenario_names,
+        index=0 if scenario_names else 0,
+        help="Scenarios define options like temperature, top_p, etc."
+    )
+    
+    # Get the configuration for the selected model and scenario
+    model_id = models.get(selected_model, {})
+    scenario_config = model_scenarios.get(selected_scenario, {})
+    
     # File uploader with support for multiple file types
     uploaded_file = FileHandler.get_file_uploader("Upload a file for additional context")
     
@@ -51,9 +70,6 @@ with st.sidebar:
     
     # Add a horizontal separator
     st.sidebar.divider()
-    
-    # Add a clear chat history section
-    st.sidebar.markdown("### Chat Management")
     
     # Initialize confirmation state if it doesn't exist
     if "confirm_clear" not in st.session_state:
@@ -95,10 +111,15 @@ ConversationManager.initialize_session()
 # Render the conversation history
 for message in ConversationManager.get_messages():
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-        image_urls = re.findall(r"(https?://\S+\.(?:png|jpg|jpeg|gif))", message["content"])
-        for url in image_urls:
-            st.image(url, use_container_width=True)
+        if message["role"] == "user":
+            # Display user messages as plain text
+            st.text(message["content"])
+        else:
+            # Keep markdown rendering for assistant responses
+            st.markdown(message["content"])
+            image_urls = re.findall(r"(https?://\S+\.(?:png|jpg|jpeg|gif))", message["content"])
+            for url in image_urls:
+                st.image(url, use_container_width=True)
 
 # Capture user input
 if prompt := st.chat_input("Enter your message"):
@@ -106,7 +127,7 @@ if prompt := st.chat_input("Enter your message"):
     ConversationManager.add_message("user", prompt)
     
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.text(prompt)
 
     # Build the prompt using the PromptBuilder
     with st.spinner('Indexing and searching for relevant context...'):
@@ -137,9 +158,14 @@ if prompt := st.chat_input("Enter your message"):
     # Generate response stream
     with st.spinner('Generating response...'):
         stream = client.generate(
-            model=model_options[selected_model],
+            model=model_id,
             prompt=final_prompt,
-            options={"temperature": 0.6},
+            options={
+                "temperature": scenario_config.get('temperature'),
+                "top_p": scenario_config.get('top_p'),
+                "top_k": scenario_config.get('top_k'),
+                "repeat_penalty": scenario_config.get('repeat_penalty')
+            },
             stream=True
         )
         
