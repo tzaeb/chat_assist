@@ -125,6 +125,41 @@ class FileHandler:
             return ""
     
     @staticmethod
+    def get_buffered_content(uploaded_file: Any) -> str:
+        """
+        Get buffered content for the uploaded file.
+        Only uses buffered content if the exact same file is uploaded again.
+        Resets buffer when no file is uploaded or a different file is uploaded.
+
+        Args:
+            uploaded_file: The uploaded file object.
+
+        Returns:
+            The buffered content as a string.
+        """
+        # Initialize session state variables if they don't exist
+        if "file_metadata" not in st.session_state:
+            st.session_state.file_metadata = {"name": None, "size": None}
+            st.session_state.file_content = ""
+
+        # If no file is uploaded, reset buffer and return empty string
+        if uploaded_file is None:
+            st.session_state.file_metadata = {"name": None, "size": None}
+            st.session_state.file_content = ""
+            return ""
+
+        file_name = uploaded_file.name
+        file_size = uploaded_file.size
+
+        # If it's a different file, update buffer with new content
+        if (st.session_state.file_metadata["name"] != file_name or
+            st.session_state.file_metadata["size"] != file_size):
+            st.session_state.file_metadata = {"name": file_name, "size": file_size}
+            st.session_state.file_content = FileHandler.extract_content(uploaded_file)
+        
+        return st.session_state.file_content
+
+    @staticmethod
     def upload_and_process() -> Tuple[Optional[Any], str]:
         """
         Handle file upload and content extraction in a single method.
@@ -138,4 +173,4 @@ class FileHandler:
             file_content = FileHandler.extract_content(uploaded_file)
             return uploaded_file, file_content
         
-        return None, "" 
+        return None, ""

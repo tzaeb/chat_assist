@@ -10,10 +10,7 @@ from utils.conversation import ConversationManager
 
 # Note: Run with --server.fileWatcherType=none to avoid RuntimeError from torch.classes in Streamlit 1.42.0 watcher
 max_history_in_prompt = 6
-context_prompt = """You are an AI assistant. Use the following extracted information (if relevant) 
-to provide a helpful and accurate answer to the user's question. 
-If you do not see relevant information in the context, respond accordingly.
-"""
+context_prompt = "Use the following context (if relevant) to answer the question. If no relevant info is found, say so."
 
 client = Client(host="http://localhost:11434")
 
@@ -42,9 +39,12 @@ with st.sidebar:
 
     # File uploader with support for multiple file types
     uploaded_file = FileHandler.get_file_uploader("Upload a file for additional context")
-    file_content = ""
+    
     if uploaded_file is not None:
-        file_content = FileHandler.extract_content(uploaded_file)
+        with st.spinner('Processing uploaded file...'):
+            file_content = FileHandler.get_buffered_content(uploaded_file)
+    else:
+        file_content = None
 
     # Button to include full document
     include_full_doc = st.checkbox("Include full document", value=False)
@@ -109,21 +109,22 @@ if prompt := st.chat_input("Enter your message"):
         st.markdown(prompt)
 
     # Build the prompt using the PromptBuilder
-    final_prompt = prompt_builder.build_prompt(
-        prompt, 
-        ConversationManager.get_history(max_history_in_prompt), 
-        uploaded_file, 
-        file_content, 
-        include_full_doc
-    )
+    with st.spinner('Indexing and searching for relevant context...'):
+        final_prompt = prompt_builder.build_prompt(
+            prompt, 
+            ConversationManager.get_history(max_history_in_prompt), 
+            uploaded_file, 
+            file_content, 
+            include_full_doc
+        )
 
-    # Display the relevant context (only if not using full doc)
-    if uploaded_file and not include_full_doc:
-        retrieved_contexts = prompt_builder.get_relevant_context(prompt, top_k=3)
-        if retrieved_contexts:
-            with st.expander("Relevant Context Matches"):
-                for i, res in enumerate(retrieved_contexts):
-                    st.markdown(f"**Chunk #{i+1} (Score {res['score']:.2f}):**\n{res['chunk']}")
+        # Display the relevant context (only if not using full doc)
+        if uploaded_file and not include_full_doc:
+            retrieved_contexts = prompt_builder.get_relevant_context(prompt, top_k=3)
+            if retrieved_contexts:
+                with st.expander("Relevant Context Matches"):
+                    for i, res in enumerate(retrieved_contexts):
+                        st.markdown(f"**Chunk #{i+1} (Score {res['score']:.2f}):**\n{res['chunk']}")
 
     # Debug printing
     print("-------------------------------------------------------------------")
@@ -134,14 +135,19 @@ if prompt := st.chat_input("Enter your message"):
     handler = StreamingResponseHandler()
 
     # Generate response stream
-    stream = client.generate(
-        model=model_options[selected_model],
-        prompt=final_prompt,
-        options={"temperature": 0.6},
-        stream=True
-    )
+    with st.spinner('Generating response...'):
+        stream = client.generate(
+            model=model_options[selected_model],
+            prompt=final_prompt,
+            options={"temperature": 0.6},
+            stream=True
+        )
+        
+        # Process first chunk to stop the spinner
+        first_chunk = next(stream)
+        handler.process_chunk(first_chunk)
 
-    # Process streaming chunks using the handler
+    # Process remaining chunks without the spinner
     for chunk in stream:
         handler.process_chunk(chunk)
 

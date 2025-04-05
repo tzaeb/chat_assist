@@ -117,7 +117,9 @@ class ContextSearch:
             self.chunks = []
 
     def _load_document(self, file_content):
-        if isinstance(file_content, bytes):
+        if file_content is None:
+            return ""
+        elif isinstance(file_content, bytes):
             try:
                 return file_content.decode("utf-8")
             except UnicodeDecodeError:
