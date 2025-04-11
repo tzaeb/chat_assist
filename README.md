@@ -6,11 +6,11 @@ Chat Assist is an AI-powered chatbot built using `streamlit` and `ollama`, with 
 
 ## Features
 
-- **Multiple AI Model Support**: Supports models such as DeepSeek-R1 (1.5B, 8B), LLaMA 3.1 (8B), LLaMA 3.2 (3B), Mistral 7B, etc.
+- **Multiple AI Model Support**: Supports models such as DeepSeek-R1 (1.5B, 8B), LLaMA 3.1 (8B), LLaMA 3.2 (3B), Mistral 7B, Gemma3 4B, and more.
 - **Context-Aware Responses**: Uses vectorized context matching to enhance response accuracy.
 - **Chat History Retention**: Maintains conversation history to provide coherent interactions.
 - **Embedded Context Search**: Uses FAISS to retrieve relevant stored context dynamically.
-- **File-Based Context Expansion**: Allows users to upload text, JSON, or DOCX files for additional context.
+- **File-Based Context Expansion**: Allows users to upload files for additional context.
 
 ## Installation
 
@@ -58,26 +58,20 @@ model_options:
 
 1. Start the chatbot:
 
-   To guarantee that your app is only accessible from your machine, run Streamlit with the `--server.address` option set to localhost:
+   To guarantee that your app is only accessible from your machine, run Streamlit with the `--server.address` option set to localhost. It's also recommended to disable the file watcher to avoid RuntimeError from torch.classes:
    ```sh
-   streamlit run chat_assist.py --server.address localhost
+   streamlit run chat_assist.py --server.address localhost --server.fileWatcherType none
    ```
 
 2. Select the AI model from the dropdown menu.
-3. Upload an optional file (TXT, DOCX) to provide additional context.
-4. Enter your message in the chat input.
-5. The bot retrieves relevant context and generates a response using an embedded context search system.
+3. Upload an optional file to provide additional context.
+4. Choose whether to include the full document or use smart context search.
+5. Enter your message in the chat input.
+6. The bot retrieves relevant context and generates a response.
 
 ## How It Works
 
-Chat Assist leverages FAISS-based vectorization to dynamically retrieve relevant context from a predefined dataset or uploaded files. The chatbot interface is built with `streamlit`, while the AI model is hosted via `ollama`.
-
-## Example Query
-
-```
-User: "Tell me about autonomous vehicles in heavy rain."
-Bot: "Autonomous vehicles face challenges in heavy rain due to sensor interference and reduced visibility. Relevant studies suggest..."
-```
+Chat Assist uses smart document indexing to find information relevant to your questions. It creates vectors from document chunks, searches for matches to your queries, and combines the results with chat history to generate informed responses. The interface is built with `streamlit`, while AI processing happens via `ollama`.
 
 ## Future Improvements
 

@@ -1,8 +1,11 @@
 ollama
-streamlit
+streamlit>=1.22.0
 pytest
 faiss-cpu
 sentence-transformers
 numpy
 python-docx
 pdfplumber
+pandas
+openpyxl
+PyYAML
