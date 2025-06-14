@@ -26,8 +26,6 @@ If relevant context is available, cite and use it to give a precise and helpful 
 If no applicable context is found, offer a general response without speculation."
 """
 
-client = Client(host="http://localhost:11434")
-
 
 def load_config():
     try:
@@ -38,19 +36,49 @@ def load_config():
         return {}
 
 
+@st.cache_data(ttl=60)  # Cache for 60 seconds
+def get_available_models(host):
+    """Get available models from Ollama client"""
+    try:
+        client = Client(host=host)
+        models_response = client.list()
+        if hasattr(models_response, "models"):
+            return {model.model: model.model for model in models_response.models}
+        elif isinstance(models_response, dict) and "models" in models_response:
+            return {model["name"]: model["name"] for model in models_response["models"]}
+        else:
+            logger.warning("Unexpected response format from Ollama client")
+            return {}
+    except Exception as e:
+        logger.error(f"Failed to get models from Ollama: {e}")
+        st.error(f"Failed to connect to Ollama: {e}")
+        return {}
+
+
 # Load configuration values
 config = load_config()
-models = config.get("models", {})
 model_scenarios = config.get("model_scenarios", {})
+ollama_config = config.get("ollama", {})
 
-# Create the display options for the selectbox
+# Create Ollama client with configured host
+ollama_host = ollama_config.get("host", "http://localhost:11434")
+client = Client(host=ollama_host)
+
+# Get available models from Ollama
+models = get_available_models(ollama_host)
 model_names = list(models.keys())
 scenario_names = list(model_scenarios.keys())
 
 st.title("Chat Assist")
 
 # Sidebar for model selection and file upload
-with st.sidebar:
+with st.sidebar:  # Check if models are available
+    if not models:
+        st.error(
+            "No models available from Ollama. Please ensure Ollama is running and has models installed."
+        )
+        st.stop()
+
     selected_model = st.selectbox(
         "Select the AI model:",
         options=model_names,
@@ -62,10 +90,7 @@ with st.sidebar:
         options=scenario_names,
         index=0 if scenario_names else 0,
         help="Scenarios define options like temperature, top_p, etc.",
-    )
-
-    # Get the configuration for the selected model and scenario
-    model_id = models.get(selected_model, {})
+    )  # Get the configuration for the selected scenario
     scenario_config = model_scenarios.get(selected_scenario, {})
 
     # File uploader with support for multiple file types
@@ -171,12 +196,10 @@ if prompt := st.chat_input("Enter your message"):
     logger.debug("-------------------------------------------------------------------")
 
     # Initialize the streaming response handler
-    handler = StreamingResponseHandler()
-
-    # Generate response stream
+    handler = StreamingResponseHandler()  # Generate response stream
     with st.spinner("Generating response..."):
         stream = client.generate(
-            model=model_id,
+            model=selected_model,
             prompt=final_prompt,
             options={
                 "temperature": scenario_config.get("temperature"),
